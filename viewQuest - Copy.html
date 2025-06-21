@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Viewer - Xem Câu Hỏi Trắc Nghiệm</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f9;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+
+    .header {
+      background: #3f51b5;
+      color: white;
+      padding: 25px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 8px;
+    }
+
+    .upload-section {
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+
+    .file-input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-button {
+      display: inline-block;
+      padding: 12px 25px;
+      background: #3f51b5;
+      color: white;
+      border-radius: 20px;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .file-button:hover {
+      background: #5c6bc0;
+    }
+
+    .quiz-container {
+      padding: 20px;
+      display: none;
+    }
+
+    .quiz-header {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mode-btn,
+    .reset-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+
+    .mode-btn {
+      background: white;
+      color: #3f51b5;
+      border: 2px solid #3f51b5;
+    }
+
+    .mode-btn.active {
+      background: #3f51b5;
+      color: white;
+    }
+
+    .reset-btn {
+      background: white;
+      color: #ff9800;
+      border: 2px solid #ff9800;
+    }
+
+    .reset-btn:hover {
+      background: #ff9800;
+      color: white;
+    }
+
+    .questions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .question-card {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 12px;
+      border-left: 4px solid #3f51b5;
+    }
+
+    .question-number {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .question-text {
+      font-size: 1.1em;
+      margin-bottom: 16px;
+    }
+
+    .answers-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .answer-option {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.2s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .answer-option:hover {
+      background: #e3f2fd;
+      border-color: #3f51b5;
+    }
+
+    .answer-option.correct {
+      border-color: #4caf50;
+      background: #e8f5e9;
+    }
+
+    .answer-option.incorrect {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .answer-option.disabled {
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+
+    .answer-label {
+      background: #3f51b5;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9em;
+      margin-right: 10px;
+    }
+
+    .correct-answer-indicator {
+      margin-top: 15px;
+      font-weight: bold;
+      padding: 12px 16px;
+      border-radius: 10px;
+      color: white;
+      background: linear-gradient(135deg, #4caf50, #66bb6a);
+      border: 2px solid #4caf50;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+      font-size: 1.05em;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .correct-answer-indicator.incorrect-feedback {
+      background: linear-gradient(135deg, #f44336, #ef5350);
+      border-color: #f44336;
+      box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+    }
+
+    .correct-answer-indicator.study-mode {
+      background: linear-gradient(135deg, #2196f3, #42a5f5);
+      border-color: #2196f3;
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+    }
+
+    .explanation-section {
+      margin-top: 15px;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #fff8e1, #ffecb3);
+      border-radius: 12px;
+      border-left: 5px solid #ff9800;
+      border: 1px solid #ffcc02;
+      box-shadow: 0 3px 10px rgba(255, 152, 0, 0.2);
+      display: none;
+    }
+
+    .explanation-title {
+      font-weight: bold;
+      color: #e65100;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.1em;
+    }
+
+    .explanation-content {
+      color: #333;
+      line-height: 1.6;
+      font-size: 1.05em;
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border-left: 3px solid #ff9800;
+    }
+
+    ul {
+      text-align: left;
+      max-width: 500px;
+      margin: 10px auto;
+      color: #555;
+    }
+
+    @media (max-width: 480px) {
+      .file-button {
+        padding: 10px 15px;
+      }
+      .question-text {
+        font-size: 1em;
+      }
+      .answer-option {
+        font-size: 0.95em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📚 Quiz Viewer</h1>
+      <p>Xem và học câu hỏi trắc nghiệm từ file Excel</p>
+    </div>
+
+    <div class="upload-section">
+      <div class="file-input-wrapper">
+        <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" />
+        <label for="fileInput" class="file-button">📁 Chọn File Excel</label>
+      </div>
+      <ul>
+        <li>File Excel cần có ít nhất 6 cột bắt buộc:</li>
+        <li><code>question</code>, <code>answer_A</code>, <code>answer_B</code>, <code>answer_C</code>, <code>answer_D</code>, <code>correct_answer</code></li>
+        <li>Có thể thêm cột <code>explanation</code> để hiển thị giải thích</li>
+      </ul>
+    </div>
+
+    <div class="quiz-container" id="quizContainer">
+      <div class="quiz-header">
+        <div class="quiz-info">
+          <span id="fileName">Tên file</span> •
+          <span id="questionCount">0 câu hỏi</span>
+        </div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="studyMode">📖 Học bài</button>
+          <button class="mode-btn" id="reviewMode">📝 Ôn tập</button>
+          <button class="reset-btn" id="resetBtn" style="display: none;">🔄 Làm lại</button>
+          <button class="reset-btn" onclick="location.reload()">📂 Tải file khác</button>
+        </div>
+      </div>
+
+      <div class="questions-list" id="questionsList"></div>
+    </div>
+  </div>
+
+    <script>
+        let questions = [];
+        let isStudyMode = true;
+
+        const fileInput = document.getElementById('fileInput');
+        const quizContainer = document.getElementById('quizContainer');
+        const fileName = document.getElementById('fileName');
+        const questionCount = document.getElementById('questionCount');
+        const studyModeBtn = document.getElementById('studyMode');
+        const reviewModeBtn = document.getElementById('reviewMode');
+        const resetBtn = document.getElementById('resetBtn');
+
+        fileInput.addEventListener('change', handleFileSelect);
+        studyModeBtn.addEventListener('click', () => setMode(true));
+        reviewModeBtn.addEventListener('click', () => setMode(false));
+        resetBtn.addEventListener('click', resetReviewMode);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                        raw: false,
+                        defval: ''
+                    });
+
+                    if (jsonData.length === 0) {
+                        alert('File Excel trống!');
+                        return;
+                    }
+
+                    // Kiểm tra cấu trúc file
+                    const requiredColumns = ['question', 'answer_A', 'answer_B', 'answer_C', 'answer_D', 'correct_answer'];
+                    const firstRow = jsonData[0];
+                    const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+                    
+                    if (missingColumns.length > 0) {
+                        alert(`File thiếu các cột bắt buộc: ${missingColumns.join(', ')}`);
+                        return;
+                    }
+
+                    // Kiểm tra xem có cột explanation không
+                    const hasExplanation = 'explanation' in firstRow;
+
+                    questions = jsonData.map((row, index) => ({
+                        id: index + 1,
+                        question: String(row.question || '').trim(),
+                        answers: {
+                            A: String(row.answer_A || '').trim(),
+                            B: String(row.answer_B || '').trim(),
+                            C: String(row.answer_C || '').trim(),
+                            D: String(row.answer_D || '').trim()
+                        },
+                        correct: String(row.correct_answer || '').trim(),
+                        explanation: hasExplanation ? String(row.explanation || '').trim() : ''
+                    }));
+
+                    fileName.textContent = file.name;
+                    questionCount.textContent = questions.length + ' câu hỏi';
+                    document.querySelector('.upload-section').style.display = 'none';
+                    quizContainer.style.display = 'block';
+                    
+                    showAllQuestions();
+                    
+                } catch (error) {
+                    alert('Lỗi đọc file Excel: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showAllQuestions() {
+            if (questions.length === 0) return;
+
+            const questionsList = document.querySelector('.questions-list');
+            questionsList.innerHTML = '';
+            
+            questions.forEach((question, questionIndex) => {
+                const questionCard = document.createElement('div');
+                questionCard.className = 'question-card';
+                
+                const questionNumber = document.createElement('div');
+                questionNumber.className = 'question-number';
+                questionNumber.textContent = `Câu ${question.id}`;
+                
+                const questionText = document.createElement('div');
+                questionText.className = 'question-text';
+                questionText.innerHTML = safeTextToHtml(question.question);
+                
+                const answersGrid = document.createElement('div');
+                answersGrid.className = 'answers-grid';
+                
+                // Hiển thị các đáp án
+                const answerLabels = ['A', 'B', 'C', 'D'];
+                
+                answerLabels.forEach(label => {
+                    const answerDiv = document.createElement('div');
+                    answerDiv.className = 'answer-option';
+                    answerDiv.dataset.answer = label;
+                    answerDiv.dataset.questionIndex = questionIndex;
+                    
+                    if (isStudyMode && label === question.correct) {
+                        answerDiv.classList.add('correct');
+                    }
+                    
+                    answerDiv.innerHTML = `
+                        <div class="answer-label">${label}</div>
+                        <div class="answer-text">${safeTextToHtml(question.answers[label])}</div>
+                    `;
+                    
+                    // Thêm event listener cho chế độ ôn tập
+                    if (!isStudyMode) {
+                        answerDiv.addEventListener('click', handleAnswerClick);
+                    }
+                    
+                    answersGrid.appendChild(answerDiv);
+                });
+                
+                const correctIndicator = document.createElement('div');
+                correctIndicator.className = 'correct-answer-indicator';
+                correctIndicator.id = `correct-${questionIndex}`;
+                
+                // Tạo phần giải thích
+                const explanationSection = document.createElement('div');
+                explanationSection.className = 'explanation-section';
+                explanationSection.id = `explanation-${questionIndex}`;
+                
+                if (question.explanation) {
+                    explanationSection.innerHTML = `
+                        <div class="explanation-title">
+                            💡 Giải thích chi tiết:
+                        </div>
+                        <div class="explanation-content">${safeTextToHtml(question.explanation)}</div>
+                    `;
+                } else {
+                    explanationSection.innerHTML = `
+                        <div class="explanation-title">
+                            ℹ️ Thông tin:
+                        </div>
+                        <div class="explanation-content">Câu hỏi này chưa có giải thích chi tiết.</div>
+                    `;
+                }
+                
+                // Hiển thị đáp án đúng và giải thích
+                if (isStudyMode) {
+                    correctIndicator.style.display = 'block';
+                    correctIndicator.classList.add('study-mode');
+                    correctIndicator.innerHTML = `<strong>✅ Đáp án đúng: ${question.correct}</strong>`;
+                    
+                    if (question.explanation) {
+                        explanationSection.style.display = 'block';
+                    }
+                } else {
+                    correctIndicator.style.display = 'none';
+                    correctIndicator.classList.remove('study-mode', 'incorrect-feedback');
+                    explanationSection.style.display = 'none';
+                }
+                
+                questionCard.appendChild(questionNumber);
+                questionCard.appendChild(questionText);
+                questionCard.appendChild(answersGrid);
+                questionCard.appendChild(correctIndicator);
+                questionCard.appendChild(explanationSection);
+                
+                questionsList.appendChild(questionCard);
+            });
+        }
+
+        function handleAnswerClick(event) {
+            const answerDiv = event.currentTarget;
+            const questionIndex = parseInt(answerDiv.dataset.questionIndex);
+            const selectedAnswer = answerDiv.dataset.answer;
+            const question = questions[questionIndex];
+            
+            // Kiểm tra xem câu hỏi này đã được trả lời chưa
+            const questionCard = answerDiv.closest('.question-card');
+            const answersGrid = questionCard.querySelector('.answers-grid');
+            const answerOptions = answersGrid.querySelectorAll('.answer-option');
+            
+            // Nếu đã trả lời rồi thì không cho phép click nữa
+            if (answerOptions[0].classList.contains('disabled')) {
+                return;
+            }
+            
+            // Vô hiệu hóa tất cả đáp án
+            answerOptions.forEach(option => {
+                option.classList.add('disabled');
+            });
+            
+            // Hiển thị kết quả
+            if (selectedAnswer === question.correct) {
+                // Đáp án đúng
+                answerDiv.classList.add('correct');
+                showFeedback(questionIndex, true, selectedAnswer);
+            } else {
+                // Đáp án sai
+                answerDiv.classList.add('incorrect');
+                
+                // Hiển thị đáp án đúng
+                answerOptions.forEach(option => {
+                    if (option.dataset.answer === question.correct) {
+                        option.classList.add('correct');
+                    }
+                });
+                
+                showFeedback(questionIndex, false, selectedAnswer, question.correct);
+            }
+            
+            // Hiển thị giải thích nếu có
+            if (question.explanation) {
+                const explanationSection = document.getElementById(`explanation-${questionIndex}`);
+                explanationSection.style.display = 'block';
+            }
+        }
+
+        function showFeedback(questionIndex, isCorrect, selectedAnswer, correctAnswer = null) {
+            const correctIndicator = document.getElementById(`correct-${questionIndex}`);
+            
+            if (isCorrect) {
+                correctIndicator.style.display = 'block';
+                correctIndicator.classList.remove('incorrect-feedback');
+                correctIndicator.classList.remove('study-mode');
+                correctIndicator.innerHTML = `<strong>🎉 Chính xác! Bạn đã chọn đáp án ${selectedAnswer}</strong>`;
+            } else {
+                correctIndicator.style.display = 'block';
+                correctIndicator.classList.add('incorrect-feedback');
+                correctIndicator.classList.remove('study-mode');
+                correctIndicator.innerHTML = `<strong>❌ Sai rồi! Bạn chọn ${selectedAnswer}, đáp án đúng là ${correctAnswer}</strong>`;
+            }
+        }
+
+        function setMode(studyMode) {
+            isStudyMode = studyMode;
+            
+            if (studyMode) {
+                studyModeBtn.classList.add('active');
+                reviewModeBtn.classList.remove('active');
+                resetBtn.style.display = 'none';
+            } else {
+                studyModeBtn.classList.remove('active');
+                reviewModeBtn.classList.add('active');
+                resetBtn.style.display = 'inline-block';
+            }
+            
+            showAllQuestions();
+        }
+
+        function resetReviewMode() {
+            if (!isStudyMode) {
+                showAllQuestions();
+            }
+        }
+
+        // Hàm xử lý text an toàn và giữ nguyên xuống dòng
+        function safeTextToHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;')
+                .replace(/\n/g, '<br>');
+        }
+    </script>
+</body>
+</html>
