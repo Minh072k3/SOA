@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Viewer - Tự Động Tải Câu Hỏi</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    /* Giữ nguyên CSS như trước */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; min-height: 100vh; padding: 20px; }
+    .container { max-width: 960px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
+    .header { background: #3f51b5; color: white; padding: 25px; text-align: center; }
+    .header h1 { font-size: 2em; margin-bottom: 8px; }
+    .quiz-container { padding: 20px; display: none; }
+    .quiz-header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; }
+    .mode-toggle { display: flex; gap: 8px; }
+    .mode-btn, .reset-btn { padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; }
+    .mode-btn { background: white; color: #3f51b5; border: 2px solid #3f51b5; }
+    .mode-btn.active { background: #3f51b5; color: white; }
+    .reset-btn { background: white; color: #ff9800; border: 2px solid #ff9800; }
+    .reset-btn:hover { background: #ff9800; color: white; }
+    .questions-list { display: flex; flex-direction: column; gap: 16px; }
+    .question-card { background: #f9f9f9; padding: 20px; border-radius: 12px; border-left: 4px solid #3f51b5; }
+    .question-number { font-weight: bold; margin-bottom: 8px; }
+    .question-text { font-size: 1.1em; margin-bottom: 16px; }
+    .answers-grid { display: flex; flex-direction: column; gap: 10px; }
+    .answer-option { background: white; border: 1px solid #ccc; padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.2s ease; display: flex; align-items: center; }
+    .answer-option:hover { background: #e3f2fd; border-color: #3f51b5; }
+    .answer-option.correct { border-color: #4caf50; background: #e8f5e9; }
+    .answer-option.incorrect { border-color: #f44336; background: #ffebee; }
+    .answer-option.disabled { cursor: not-allowed; opacity: 0.8; }
+    .answer-label { background: #3f51b5; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9em; margin-right: 10px; }
+    .correct-answer-indicator { margin-top: 15px; font-weight: bold; padding: 12px 16px; border-radius: 10px; color: white; background: linear-gradient(135deg, #4caf50, #66bb6a); border: 2px solid #4caf50; box-shadow: 0 2px 8px rgba(76,175,80,0.3); font-size: 1.05em; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .correct-answer-indicator.incorrect-feedback { background: linear-gradient(135deg, #f44336, #ef5350); border-color: #f44336; box-shadow: 0 2px 8px rgba(244,67,54,0.3); }
+    .correct-answer-indicator.study-mode { background: linear-gradient(135deg, #2196f3, #42a5f5); border-color: #2196f3; box-shadow: 0 2px 8px rgba(33,150,243,0.3); }
+    .explanation-section { margin-top: 15px; padding: 16px 20px; background: linear-gradient(135deg, #fff8e1, #ffecb3); border-radius: 12px; border-left: 5px solid #ff9800; border: 1px solid #ffcc02; box-shadow: 0 3px 10px rgba(255,152,0,0.2); display: none; }
+    .explanation-title { font-weight: bold; color: #e65100; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; font-size: 1.1em; }
+    .explanation-content { color: #333; line-height: 1.6; font-size: 1.05em; background: white; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #ff9800; }
+    ul { text-align: left; max-width: 500px; margin: 10px auto; color: #555; }
+    @media (max-width:480px) { .question-text{font-size:1em;} .answer-option{font-size:0.95em;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📚 Quiz Viewer</h1>
+      <p>Tự động tải câu hỏi từ file Excel</p>
+    </div>
+
+    <div class="quiz-container" id="quizContainer">
+      <div class="quiz-header">
+        <div class="quiz-info">
+          <span id="fileName">quiz.xlsx</span> • 
+          <span id="questionCount">0 câu hỏi</span>
+        </div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="studyMode">📖 Học bài</button>
+          <button class="mode-btn" id="reviewMode">📝 Ôn tập</button>
+          <button class="reset-btn" id="resetBtn" style="display:none;">🔄 Làm lại</button>
+        </div>
+      </div>
+      <div class="questions-list" id="questionsList"></div>
+    </div>
+  </div>
+
+  <script>
+    let questions = [];
+    let isStudyMode = true;
+    const quizContainer = document.getElementById('quizContainer');
+    const fileName = document.getElementById('fileName');
+    const questionCount = document.getElementById('questionCount');
+    const studyModeBtn = document.getElementById('studyMode');
+    const reviewModeBtn = document.getElementById('reviewMode');
+    const resetBtn = document.getElementById('resetBtn');
+
+    studyModeBtn.addEventListener('click', () => setMode(true));
+    reviewModeBtn.addEventListener('click', () => setMode(false));
+    resetBtn.addEventListener('click', resetReviewMode);
+
+    document.addEventListener('DOMContentLoaded', loadExcel);
+
+    async function loadExcel() {
+      try {
+        const url = './quiz.xlsx'; // Đường dẫn tới file Excel
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Không tải được file: ' + response.statusText);
+        const arrayBuffer = await response.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheet];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+
+        if (jsonData.length === 0) throw new Error('File Excel trống!');
+
+        const required = ['question','answer_A','answer_B','answer_C','answer_D','correct_answer'];
+        const missing = required.filter(col => !(col in jsonData[0]));
+        if (missing.length) throw new Error('Thiếu cột: ' + missing.join(', '));
+
+        const hasExp = 'explanation' in jsonData[0];
+        questions = jsonData.map((r,i) => ({ id:i+1, question:String(r.question).trim(), answers:{A:String(r.answer_A).trim(),B:String(r.answer_B).trim(),C:String(r.answer_C).trim(),D:String(r.answer_D).trim()}, correct:String(r.correct_answer).trim(), explanation: hasExp?String(r.explanation).trim():'' }));
+
+        fileName.textContent = url.split('/').pop();
+        questionCount.textContent = `${questions.length} câu hỏi`;
+        quizContainer.style.display = 'block';
+        showAllQuestions();
+      } catch(err) {
+        alert(err.message);
+      }
+    }
+
+    function showAllQuestions() {
+      const list = document.getElementById('questionsList');
+      list.innerHTML = '';
+      questions.forEach((q, idx) => {
+        const card = document.createElement('div'); card.className='question-card';
+        card.innerHTML = `
+          <div class="question-number">Câu ${q.id}</div>
+          <div class="question-text">${safeHtml(q.question)}</div>
+          <div class="answers-grid">
+            ${['A','B','C','D'].map(l => `
+              <div class="answer-option ${isStudyMode&&l===q.correct?'correct':''}" data-answer="${l}" data-idx="${idx}">
+                <div class="answer-label">${l}</div>
+                <div class="answer-text">${safeHtml(q.answers[l])}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div id="correct-${idx}" class="correct-answer-indicator"></div>
+          <div id="exp-${idx}" class="explanation-section">
+            <div class="explanation-title">💡 Giải thích chi tiết:</div>
+            <div class="explanation-content">${q.explanation||'Chưa có giải thích.'}</div>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+
+      // Gắn sự kiện ôn tập
+      if (!isStudyMode) {
+        document.querySelectorAll('.answer-option').forEach(el => el.addEventListener('click', onAnswer));
+      }
+
+      // Hiển thị chỉ số và giải thích
+      questions.forEach((q, i) => {
+        const ind = document.getElementById(`correct-${i}`);
+        const exp = document.getElementById(`exp-${i}`);
+        if (isStudyMode) {
+          ind.style.display='block'; ind.classList.add('study-mode'); ind.textContent=`✅ Đáp án đúng: ${q.correct}`;
+          exp.style.display='block';
+        } else { ind.style.display='none'; exp.style.display='none'; }
+      });
+    }
+
+    function onAnswer(e) {
+      const el = e.currentTarget;
+      const idx = +el.dataset.idx;
+      const sel = el.dataset.answer;
+      const opts = el.parentElement.querySelectorAll('.answer-option');
+      opts.forEach(o=>o.classList.add('disabled'));
+      const q = questions[idx];
+      if (sel===q.correct) { el.classList.add('correct'); showFeedback(idx,true,sel); }
+      else { el.classList.add('incorrect'); opts.forEach(o=>o.dataset.answer===q.correct&&o.classList.add('correct')); showFeedback(idx,false,sel,q.correct); }
+      document.getElementById(`exp-${idx}`).style.display='block';
+    }
+
+    function showFeedback(i, ok, sel, corr) {
+      const ind = document.getElementById(`correct-${i}`);
+      ind.style.display='block'; ind.classList.toggle('incorrect-feedback',!ok);
+      ind.classList.remove('study-mode');
+      ind.innerHTML = ok
+        ? `🎉 Chính xác! Bạn chọn ${sel}`
+        : `❌ Sai! Bạn chọn ${sel}, đáp án đúng là ${corr}`;
+    }
+
+    function setMode(study) {
+      isStudyMode=study;
+      studyModeBtn.classList.toggle('active',study);
+      reviewModeBtn.classList.toggle('active',!study);
+      resetBtn.style.display=study?'none':'inline-block';
+      showAllQuestions();
+    }
+    function resetReviewMode(){ if(!isStudyMode) showAllQuestions(); }
+    function safeHtml(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;').replace(/\n/g,'<br>'); }
+  </script>
+</body>
+</html>
