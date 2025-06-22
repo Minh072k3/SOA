@@ -51,7 +51,7 @@
     <div class="quiz-container" id="quizContainer">
       <div class="quiz-header">
         <div class="quiz-info">
-          <span id="fileName">quiz.xlsx</span> • 
+          <span id="fileName">Quiz.xlsx</span> • 
           <span id="questionCount">0 câu hỏi</span>
         </div>
         <div class="mode-toggle">
@@ -82,7 +82,7 @@
 
     async function loadExcel() {
       try {
-        const url = './quiz.xlsx'; // Đường dẫn tới file Excel
+        const url = './Quiz.xlsx'; // Đường dẫn tới file Excel
         const response = await fetch(url);
         if (!response.ok) throw new Error('Không tải được file: ' + response.statusText);
         const arrayBuffer = await response.arrayBuffer();
